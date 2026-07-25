@@ -18,7 +18,7 @@ from fastapi import FastAPI
 from sqlalchemy import text
 
 from app.routers import prediction, agent as agent_router
-from app.utils.db import engine, enable_pgvector
+from app.utils.db import engine, enable_pgvector, IS_SQLITE
 
 
 @asynccontextmanager
@@ -30,6 +30,19 @@ async def lifespan(app: FastAPI):
         # Loan prediction history
         conn.execute(
             text(
+                """
+                CREATE TABLE IF NOT EXISTS predictions (
+                    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                    age          INT,
+                    salary       FLOAT,
+                    credit_score INT,
+                    loan_amount  FLOAT,
+                    loan_status  TEXT,
+                    probability  FLOAT,
+                    created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+                if IS_SQLITE else
                 """
                 CREATE TABLE IF NOT EXISTS predictions (
                     id           SERIAL PRIMARY KEY,
@@ -45,47 +58,61 @@ async def lifespan(app: FastAPI):
             )
         )
 
-        # RAG vector store for policy documents
-        conn.execute(
-            text(
-                """
-                CREATE TABLE IF NOT EXISTS policy_chunks (
-                    id        SERIAL PRIMARY KEY,
-                    content   TEXT,
-                    embedding VECTOR(384),
-                    source    TEXT
+        if IS_SQLITE:
+            # SQLite: store embeddings as text (no pgvector)
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS policy_chunks (
+                        id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                        content   TEXT,
+                        embedding TEXT,
+                        source    TEXT
+                    )
+                    """
                 )
-                """
             )
-        )
-
-        # Speed up cosine-distance queries with an IVFFlat index (created once)
-        conn.execute(
-            text(
-                """
-                DO $$
-                BEGIN
-                    IF NOT EXISTS (
-                        SELECT 1 FROM pg_indexes
-                        WHERE tablename = 'policy_chunks'
-                          AND indexname = 'policy_chunks_embedding_idx'
-                    ) THEN
-                        CREATE INDEX policy_chunks_embedding_idx
-                        ON policy_chunks
-                        USING ivfflat (embedding vector_cosine_ops)
-                        WITH (lists = 10);
-                    END IF;
-                END $$;
-                """
+        else:
+            # PostgreSQL: use proper VECTOR column and IVFFlat index
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS policy_chunks (
+                        id        SERIAL PRIMARY KEY,
+                        content   TEXT,
+                        embedding VECTOR(384),
+                        source    TEXT
+                    )
+                    """
+                )
             )
-        )
+            conn.execute(
+                text(
+                    """
+                    DO $$
+                    BEGIN
+                        IF NOT EXISTS (
+                            SELECT 1 FROM pg_indexes
+                            WHERE tablename = 'policy_chunks'
+                              AND indexname = 'policy_chunks_embedding_idx'
+                        ) THEN
+                            CREATE INDEX policy_chunks_embedding_idx
+                            ON policy_chunks
+                            USING ivfflat (embedding vector_cosine_ops)
+                            WITH (lists = 10);
+                        END IF;
+                    END $$;
+                    """
+                )
+            )
 
         conn.commit()
 
-    print("✓ Database tables ready.")
+    print("[OK] Database tables ready.")
     yield
     # ── shutdown ─────────────────────────────────────────────────────────────
     # Nothing to clean up — connection pool handles itself.
+
 
 
 app = FastAPI(
