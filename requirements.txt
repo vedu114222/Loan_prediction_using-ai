@@ -11,3 +11,10 @@ sentence-transformers
 pgvector
 mcp[cli]
 python-dotenv
+# LangGraph agent
+langgraph
+langchain
+langchain-core
+langchain-openai       # set OPENAI_API_KEY    in .env to use OpenAI
+langchain-anthropic    # set ANTHROPIC_API_KEY in .env to use Anthropic
+langchain-google-genai # set GOOGLE_API_KEY    in .env to use Gemini

@@ -17,7 +17,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from sqlalchemy import text
 
-from app.routers import prediction
+from app.routers import prediction, agent as agent_router
 from app.utils.db import engine, enable_pgvector
 
 
@@ -99,6 +99,7 @@ app = FastAPI(
 )
 
 app.include_router(prediction.router, prefix="/api")
+app.include_router(agent_router.router, prefix="/api")
 
 
 @app.get("/", tags=["Health"])
