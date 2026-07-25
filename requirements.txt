@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+psycopg2-binary
+pydantic
+scikit-learn
+joblib
+numpy
+pandas
+sentence-transformers
+pgvector
+mcp[cli]
+python-dotenv
